@@ -138,8 +138,7 @@ OUTPUT_FILE="${OUTPUT_FILE}_${STEP_AFFIX}"
 time samtools view \
   -b \
   -f 3 \
-  -F 1024 \
-  -F 2048 \
+  -F 3072 \
   -q "${MAPQ}" \
   -o "${OUTPUT_FILE}.bam" \
   "${INPUT_FILE}"
