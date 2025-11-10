@@ -45,7 +45,8 @@ class Summary:
             "methylation_rate",
             "covered_positions",
         ], delimiter="\t")
-        methylation_rate = self.total_mod / (self.total_mod + self.total_unmod)
+        denominator = self.total_mod + self.total_unmod
+        methylation_rate = 0 if denominator == 0 else (self.total_mod / denominator)
         writer.writeheader()
         writer.writerow({
             "total_mod": self.total_mod,
