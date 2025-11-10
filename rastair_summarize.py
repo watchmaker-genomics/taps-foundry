@@ -3,11 +3,12 @@
 import io
 import csv
 import argparse
+import os
 from typing import NamedTuple
 from dataclasses import dataclass
 
-
 class Row(NamedTuple):
+    """Represents one CpG record from the mods/summary table."""
     chr: str
     start: int
     end: int
@@ -23,9 +24,9 @@ class Row(NamedTuple):
     gt_p_score: int
     gt_conf_score: int
 
-
 @dataclass
 class Summary:
+    """Accumulates methylation counts across all rows."""
     total_mod: int = 0
     total_unmod: int = 0
     covered_positions: int = 0
@@ -33,11 +34,11 @@ class Summary:
     def assimilate(self, row: Row):
         self.total_mod += row.mod
         self.total_unmod += row.unmod
-
-        if (row.mod + row.unmod) > 0:
+        if row.coverage > 0:
             self.covered_positions += 1
 
     def write(self, out_fobj: io.TextIOWrapper):
+        """Write a one-line summary with methylation percentage."""
         writer = csv.DictWriter(out_fobj, fieldnames=[
             "total_mod",
             "total_unmod",
@@ -53,14 +54,18 @@ class Summary:
             "covered_positions": self.covered_positions,
         })
 
-
-def main(rastair_in: str, summary_out: str):
+def main(input_path: str, output_path: str):
+    """Generate a methylation summary from a mods file."""
     summary = Summary()
 
-    with open(rastair_in, newline="") as csvfile:
+    with open(input_path, newline="") as csvfile:
         reader = csv.DictReader(csvfile, delimiter="\t")
         for row in reader:
-            row = Row(
+            # Skip SNP-containing rows
+            if int(row["snp"]) == 1:
+                continue
+            
+            summary.assimilate(Row(
                 chr=row["#chr"],
                 start=int(row["start"]),
                 end=int(row["end"]),
@@ -75,17 +80,37 @@ def main(rastair_in: str, summary_out: str):
                 genotype=row["genotype"],
                 gt_p_score=int(row["gt_p_score"]),
                 gt_conf_score=int(row["gt_conf_score"]),
-            )
-            summary.assimilate(row)
+            ))
 
-    with open(summary_out, "w") as out_fobj:
+    with open(output_path, "w") as out_fobj:
         summary.write(out_fobj)
 
-
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--rastair_in', help='rastair result file to summarize')
-    parser.add_argument('--summary_out', help='output file name for the summarized results')
+    parser = argparse.ArgumentParser(
+        description="Summarize mod/unmod counts and compute overall methylation rate."
+    )
+    parser.add_argument(
+        "-i", "--input-file",
+        required=True,
+        help="Path to the rastair input mods file"
+    )
+    parser.add_argument(
+        "-o", "--output-dir",
+        default=None,
+        help="Optional directory to write the summary output into. "
+             "Output filename will match the input filename with '.summary'."
+    )
+
     args = parser.parse_args()
 
-    main(args.rastair_in, args.summary_out)
+    # Derive output filename automatically
+    base = os.path.basename(args.input_file)
+    summary_name = f"{os.path.splitext(base)[0]}.summary"
+
+    if args.output_dir:
+        os.makedirs(args.output_dir, exist_ok=True)
+        summary_out = os.path.join(args.output_dir, summary_name)
+    else:
+        summary_out = summary_name
+
+    main(args.input_file, summary_out)
