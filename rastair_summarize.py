@@ -62,7 +62,7 @@ def main(input_path: str, output_path: str):
         reader = csv.DictReader(csvfile, delimiter="\t")
         for row in reader:
             # Skip SNP-containing rows
-            if int(row["snp"]) == 1:
+            if not (row["genotype"] == 'C/C' or row["genotype"] == 'G/G'):
                 continue
             
             summary.assimilate(Row(
