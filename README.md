@@ -9,7 +9,7 @@ This script processes paired-end FASTQ files for TAPS methylation calling. It's 
 #### Usage
 
 ```
-./call-methylation.sh \
+call-methylation.sh \
   --prefix SAMPLE \
   --cpus 16 \
   --memory 64 \
@@ -47,7 +47,7 @@ Input files must be named:
 #### Example with Illumina Truseq Adapters
 
 ```
-call-methylation \
+call-methylation.sh \
     --prefix=prefix \
     --cpus=40 \
     --memory=80 \
