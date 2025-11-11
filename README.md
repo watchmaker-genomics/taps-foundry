@@ -58,9 +58,9 @@ call-methylation.sh \
     --baseq=30
 ```
 
-## `rastair_summarize.py
+## `rastair_summarize.py`
 
-This script summarizes methylation counts from a `rastair call` `.mods` file.  
+This script summarizes methylation counts from a rastair `.mods` file.  
 It filters out rows containing SNPs and outputs a one-line summary including:
 
 - Total modified counts (`mod`)
@@ -69,7 +69,7 @@ It filters out rows containing SNPs and outputs a one-line summary including:
 - Number of covered CpG positions
 
 #### Input Requirements
-The input file must be a **tab-delimited rastair `.mods` file** produced by `rastair call` and must contain the fields:
+The input file must be a tab-delimited `.mods` file produced by `rastair call` and must contain the fields:
 `#chr`, `start`, `end`, `name`, `unmod`, `mod`, `coverage`, `genotype`, `gt_p_score`, `gt_conf_score`.
 
 #### Usage
@@ -96,7 +96,7 @@ total_mod    total_unmod    methylation_rate    covered_positions
 
 ## `save_as_methylkit.py`
 
-This script converts a `rastair call`  `.mods` file into a **methylKit-compatible** TSV format. It computes percent methylation (`freqC`) and percent unmethylated (`freqT`) per CpG position and outputs the standard methylKit columns.
+This script converts a `rastair call` `.mods` file into a **methylKit-compatible** TSV format. It computes percent methylation (`freqC`) and percent unmethylated (`freqT`) per CpG position and outputs the standard methylKit columns.
 
 #### Input Requirements
 
