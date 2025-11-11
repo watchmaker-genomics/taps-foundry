@@ -1,6 +1,6 @@
 # taps-foundry
 
-[rastair](https://bitbucket.org/bsblabludwig/rastair/src/master/) and [asTair](https://bitbucket.org/bsblabludwig/astair/src/master/) were creeated by Benjamin Schuster-Böckler's lab at the University of Oxford, Ludwig Institute for Cancer Research. 
+[rastair](https://bitbucket.org/bsblabludwig/rastair/src/master/) and [asTair](https://bitbucket.org/bsblabludwig/astair/src/master/) were created by Benjamin Schuster-Böckler's lab at the University of Oxford, Ludwig Institute for Cancer Research. 
 
 ## `call-methylation.sh`
 
