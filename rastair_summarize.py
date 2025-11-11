@@ -7,6 +7,7 @@ import os
 from typing import NamedTuple
 from dataclasses import dataclass
 
+
 class Row(NamedTuple):
     """Represents one CpG record from the mods/summary table."""
     chr: str
@@ -24,6 +25,7 @@ class Row(NamedTuple):
     gt_p_score: int
     gt_conf_score: int
 
+
 @dataclass
 class Summary:
     """Accumulates methylation counts across all rows."""
@@ -31,13 +33,14 @@ class Summary:
     total_unmod: int = 0
     covered_positions: int = 0
 
-    def assimilate(self, row: Row):
+    def assimilate(self, row: Row) -> None:
+        """Incorporate one row's counts into the running totals."""
         self.total_mod += row.mod
         self.total_unmod += row.unmod
         if row.coverage > 0:
             self.covered_positions += 1
 
-    def write(self, out_fobj: io.TextIOWrapper):
+    def write(self, out_fobj: io.TextIOWrapper) -> None:
         """Write a one-line summary with methylation percentage."""
         writer = csv.DictWriter(out_fobj, fieldnames=[
             "total_mod",
@@ -45,8 +48,10 @@ class Summary:
             "methylation_rate",
             "covered_positions",
         ], delimiter="\t")
+
         denominator = self.total_mod + self.total_unmod
         methylation_rate = 0 if denominator == 0 else (self.total_mod / denominator)
+
         writer.writeheader()
         writer.writerow({
             "total_mod": self.total_mod,
@@ -55,7 +60,8 @@ class Summary:
             "covered_positions": self.covered_positions,
         })
 
-def main(input_path: str, output_path: str):
+
+def main(input_path: str, output_path: str) -> None:
     """Generate a methylation summary from a mods file."""
     summary = Summary()
 
@@ -63,9 +69,9 @@ def main(input_path: str, output_path: str):
         reader = csv.DictReader(csvfile, delimiter="\t")
         for row in reader:
             # Skip SNP-containing rows
-            if not (row["genotype"] == 'C/C' or row["genotype"] == 'G/G'):
+            if not (row["genotype"] == "C/C" or row["genotype"] == "G/G"):
                 continue
-            
+
             summary.assimilate(Row(
                 chr=row["#chr"],
                 start=int(row["start"]),
@@ -86,6 +92,7 @@ def main(input_path: str, output_path: str):
     with open(output_path, "w") as out_fobj:
         summary.write(out_fobj)
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Summarize mod/unmod counts and compute overall methylation rate."
@@ -104,7 +111,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    # Derive output filename automatically
     base = os.path.basename(args.input_file)
     summary_name = f"{os.path.splitext(base)[0]}.summary"
 
