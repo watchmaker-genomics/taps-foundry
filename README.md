@@ -2,6 +2,8 @@
 
 [rastair](https://bitbucket.org/bsblabludwig/rastair/src/master/) and [asTair](https://bitbucket.org/bsblabludwig/astair/src/master/) were created by Benjamin Schuster-Böckler's lab at the University of Oxford, Ludwig Institute for Cancer Research. 
 
+Python scripts in this repository rely on Python 3+.
+
 ## `call-methylation.sh`
 
 This script processes paired-end FASTQ files for TAPS methylation calling. It's intended as an example pipeline to help users get started with TAPS methylation analysis. Most users will likely pull out specific steps for their own custom pipelines, however it can be run as-is or with minimal modifications. See the **Usage** section below for details.
@@ -96,7 +98,9 @@ total_mod    total_unmod    methylation_rate    covered_positions
 
 ## `save_as_methylkit.py`
 
-This script converts a `rastair call` `.mods` file into a **methylKit-compatible** TSV format. It computes percent methylation (`freqC`) and percent unmethylated (`freqT`) per CpG position and outputs the standard methylKit columns.
+This script converts a `rastair call` `.mods` file into a **methylKit-compatible** TSV format. It computes percent methylation (`freqC`) and percent unmethylated (`freqT`) per CpG position and outputs the standard methylKit columns. 
+
+Note that with TAPS chemistry, `freqC` represents the count of mCtoT conversions which is the opposite of Bisulfite sequencing.
 
 #### Input Requirements
 
