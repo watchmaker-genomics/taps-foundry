@@ -4,7 +4,7 @@
 
 ## `call-methylation.sh`
 
-This script processes paired-end FASTQ files for TAPS methylation calling. It's intended as an example pipeline to help users get started with TAPS methylation analysis. Most users will likley pull out specific steps for their own custom pipelines, however it can be run as-is or with minimal modifications. See the **Usage** section below for details.
+This script processes paired-end FASTQ files for TAPS methylation calling. It's intended as an example pipeline to help users get started with TAPS methylation analysis. Most users will likely pull out specific steps for their own custom pipelines, however it can be run as-is or with minimal modifications. See the **Usage** section below for details.
 
 #### Usage
 
