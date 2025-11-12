@@ -107,6 +107,8 @@ Note that with TAPS chemistry, `freqC` represents the count of mCtoT conversions
 The input file must be a tab-separated rastair mods table containing at least:
 ```
 #chr, start, mod, unmod, coverage[, strand]
+```
+
 #### Output Format
 The output file contains:
 ```
