@@ -131,6 +131,13 @@ python save_as_methylkit.py \
 python save_as_methylkit.py -i test.mods -o results/test.mods.methylkit
 ```
 
+## Variant Calling for TAPS Data
+TAPS introduces predictable C→T conversions during library preparation, which can confound standard variant callers by mimicking SNPs. Although TAPS preserves DNA integrity far better than bisulfite or EM-seq while simultaneously minimizing base changes, these systematic conversions still require specialized handling.
+
+For accurate SNP and methylation-aware variant detection, use the TAPS+ Variant Caller (TVC), specifically developed for TAPS data:
+
+[TVC on GitHub](https://github.com/watchmaker-genomics/TVC)
+
 # License and Use
 This project is licensed under the [MIT License](./LICENSE).
 
