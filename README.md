@@ -72,7 +72,7 @@ It filters out rows containing SNPs and outputs a one-line summary including:
 
 #### Input Requirements
 The input file must be a tab-delimited `.mods` file produced by `rastair call` and must contain the fields:
-`#chr`, `start`, `end`, `name`, `unmod`, `mod`, `coverage`, `genotype`, `gt_p_score`, `gt_conf_score`.
+`#chr`, `start`, `end`, `name`, `beta_est`, `strand`, `unmod`, `mod`, `no_snp`, `snp`, `coverage`, `genotype`, `gt_p_score`, `gt_conf_score`.
 
 #### Usage
 
