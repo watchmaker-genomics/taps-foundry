@@ -77,7 +77,7 @@ The input file must be a tab-delimited `.mods` file produced by `rastair call` a
 #### Usage
 
 ```
-python summarize_mods.py \
+python rastair_summarize.py \
     --input-file sample_rastair.mods \
     --output-dir results/
 ```
