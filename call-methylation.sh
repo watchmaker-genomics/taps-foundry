@@ -1,9 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-# Parse named arguments (GNU getopt)
+# Parse named arguments
 TEMP=$(getopt -o p:c:m:r:q:b: \
-  --long prefix:,cpus:,memory:,reference:,mapq:,baseq:,adapter1:,adapter2: -- "$@")
+  --long prefix:,cpus:,memory:,reference:,mapq:,baseq:,adapter1:,adapter2:,run-astair -- "$@")
 eval set -- "$TEMP"
 
 # Defaults
@@ -11,57 +11,63 @@ MAPQ=20
 BASEQ=30
 ADAPTER1=""
 ADAPTER2=""
+RUN_ASTair=false
 
 # Extract options
 while true; do
   case "$1" in
-  -p | --prefix)
-    PREFIX=$2
-    shift 2
-    ;;
-  -c | --cpus)
-    CPUS=$2
-    shift 2
-    ;;
-  -m | --memory)
-    MEMORY=$2
-    shift 2
-    ;;
-  -r | --reference)
-    REFERENCE=$2
-    shift 2
-    ;;
-  -q | --mapq)
-    MAPQ=$2
-    shift 2
-    ;;
-  -b | --baseq)
-    BASEQ=$2
-    shift 2
-    ;;
-  --adapter1)
-    ADAPTER1=$2
-    shift 2
-    ;;
-  --adapter2)
-    ADAPTER2=$2
-    shift 2
-    ;;
-  --)
-    shift
-    break
-    ;;
-  *)
-    echo "Internal error!"
-    exit 1
-    ;;
+    -p | --prefix)
+      PREFIX=$2
+      shift 2
+      ;;
+    -c | --cpus)
+      CPUS=$2
+      shift 2
+      ;;
+    -m | --memory)
+      MEMORY=$2
+      shift 2
+      ;;
+    -r | --reference)
+      REFERENCE=$2
+      shift 2
+      ;;
+    -q | --mapq)
+      MAPQ=$2
+      shift 2
+      ;;
+    -b | --baseq)
+      BASEQ=$2
+      shift 2
+      ;;
+    --adapter1)
+      ADAPTER1=$2
+      shift 2
+      ;;
+    --adapter2)
+      ADAPTER2=$2
+      shift 2
+      ;;
+    --run-astair)
+      RUN_ASTair=true
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      echo "Internal error!"
+      exit 1
+      ;;
   esac
 done
 
 # Required args check
-if [ -z "${PREFIX:-}" ] || [ -z "${CPUS:-}" ] || [ -z "${MEMORY:-}" ] || [ -z "${REFERENCE:-}" ] ||
-  [ -z "${ADAPTER1:-}" ] || [ -z "${ADAPTER2:-}" ]; then
-  echo "Usage: $0 --prefix=<sample_prefix> --cpus=<num_cpus> --memory=<GB> --reference=<fasta> --adapter1 <seq> --adapter2 <seq> [--mapq=<int>] [--baseq=<int>]"
+if [[ -z "${PREFIX:-}" || -z "${CPUS:-}" || -z "${MEMORY:-}" || -z "${REFERENCE:-}" || \
+      -z "${ADAPTER1:-}" || -z "${ADAPTER2:-}" ]]; then
+  echo "Usage: $0 --prefix=<sample_prefix> --cpus=<num_cpus> --memory=<GB> --reference=<fasta> \
+--adapter1 <seq> --adapter2 <seq> [--mapq=<int>] [--baseq=<int>] [--run-astair]"
   exit 1
 fi
 
@@ -74,8 +80,9 @@ echo "  mapq=${MAPQ}"
 echo "  baseq=${BASEQ}"
 echo "  adapter1=${ADAPTER1}"
 echo "  adapter2=${ADAPTER2}"
+echo "  run_astair=${RUN_ASTair}"
 
-# Dirs
+# Directories
 WORK_DIR="${PREFIX}/work"
 RESULTS_DIR="${PREFIX}/results"
 ASTAIR_DIR="${RESULTS_DIR}/asTair"
@@ -106,7 +113,7 @@ time bwa mem \
   "${WORK_DIR}/${PREFIX}_R2_001_trimmed.fastq.gz" |
   samtools view --threads "${CPUS}" -o "${OUTPUT_FILE}.bam" -
 
-# Sort the bam
+# Sort BAM
 echo "==> Sorting the BAM file..."
 STEP_AFFIX="sorted"
 INPUT_FILE="${OUTPUT_FILE}.bam"
@@ -131,7 +138,7 @@ time gatk \
   --TMP_DIR .
 
 # Filter duplicates/secondary; keep proper pairs
-echo "==> Filtering duplicates, secondary alignments and keeping only proper pairs..."
+echo "==> Filtering duplicates, secondary alignments, and keeping only proper pairs..."
 STEP_AFFIX="deduped_filtered"
 INPUT_FILE="${OUTPUT_FILE}.bam"
 OUTPUT_FILE="${OUTPUT_FILE}_${STEP_AFFIX}"
@@ -143,41 +150,44 @@ time samtools view \
   -o "${OUTPUT_FILE}.bam" \
   "${INPUT_FILE}"
 
-# Index
+# Index BAM
 echo "==> Indexing BAM file..."
 time samtools index "${OUTPUT_FILE}.bam"
 
 MBIAS_BAM="${OUTPUT_FILE}"
 METHYLATION_CALLS_BAM="${OUTPUT_FILE}"
 
-# asTair mbias
-echo "==> Running asTair mbias..."
-INPUT_FILE="${MBIAS_BAM}.bam"
-time astair mbias \
-  --N_threads "${CPUS}" \
-  --no_information 0 \
-  --read_length 151 \
-  -i "./${INPUT_FILE}" \
-  -f "${REFERENCE}" \
-  -d "${ASTAIR_DIR}"
+# Optional asTair section
+if [[ "${RUN_ASTair}" == true ]]; then
+  echo "==> Running asTair mbias..."
+  INPUT_FILE="${MBIAS_BAM}.bam"
+  time astair mbias \
+    --N_threads "${CPUS}" \
+    --no_information 0 \
+    --read_length 151 \
+    -i "./${INPUT_FILE}" \
+    -f "${REFERENCE}" \
+    -d "${ASTAIR_DIR}"
 
-# asTair call
-echo "==> Calling methylation with asTair..."
-STEP_AFFIX="mCtoT_CpG"
-OUTPUT_FILE="${ASTAIR_DIR}/$(basename "${METHYLATION_CALLS_BAM}")_${STEP_AFFIX}"
-time astair call \
-  --N_threads "${CPUS}" \
-  --no_information 0 \
-  --skip_clip_overlap true \
-  --start_clip 7 \
-  --end_clip 7 \
-  --context CpG \
-  --max_depth 100000 \
-  --minimum_base_quality "${BASEQ}" \
-  --minimum_mapping_quality "${MAPQ}" \
-  -i "./${METHYLATION_CALLS_BAM}.bam" \
-  -f "${REFERENCE}" \
-  -d "${ASTAIR_DIR}"
+  echo "==> Calling methylation with asTair..."
+  STEP_AFFIX="mCtoT_CpG"
+  OUTPUT_FILE="${ASTAIR_DIR}/$(basename "${METHYLATION_CALLS_BAM}")_${STEP_AFFIX}"
+  time astair call \
+    --N_threads "${CPUS}" \
+    --no_information 0 \
+    --skip_clip_overlap true \
+    --start_clip 7 \
+    --end_clip 7 \
+    --context CpG \
+    --max_depth 100000 \
+    --minimum_base_quality "${BASEQ}" \
+    --minimum_mapping_quality "${MAPQ}" \
+    -i "./${METHYLATION_CALLS_BAM}.bam" \
+    -f "${REFERENCE}" \
+    -d "${ASTAIR_DIR}"
+else
+  echo "==> Skipping asTair steps."
+fi
 
 # rastair mbias
 echo "==> Determining rastair mbias..."
