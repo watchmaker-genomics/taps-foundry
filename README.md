@@ -72,12 +72,12 @@ It filters out rows containing SNPs and outputs a one-line summary including:
 
 #### Input Requirements
 The input file must be a tab-delimited `.mods` file produced by `rastair call` and must contain the fields:
-`#chr`, `start`, `end`, `name`, `unmod`, `mod`, `coverage`, `genotype`, `gt_p_score`, `gt_conf_score`.
+`#chr`, `start`, `end`, `name`, `beta_est`, `strand`, `unmod`, `mod`, `no_snp`, `snp`, `coverage`, `genotype`, `gt_p_score`, `gt_conf_score`.
 
 #### Usage
 
 ```
-python summarize_mods.py \
+python rastair_summarize.py \
     --input-file sample_rastair.mods \
     --output-dir results/
 ```
@@ -106,9 +106,7 @@ Note that with TAPS chemistry, `freqC` represents the count of mCtoT conversions
 
 The input file must be a tab-separated rastair mods table containing at least:
 ```
-#chr, start, mod, unmod, coverage, strand
-```
-
+#chr, start, mod, unmod, coverage[, strand]
 #### Output Format
 The output file contains:
 ```
