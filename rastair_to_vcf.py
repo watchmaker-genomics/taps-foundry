@@ -361,7 +361,7 @@ class RastairVcfWriter:
             items=[
                 ("ID", VCF_MO),
                 ("Number", "1"),
-                ("Type", "Float"),
+                ("Type", "Integer"),
                 ("Description", "Methylation Observations"),
             ],
         )
