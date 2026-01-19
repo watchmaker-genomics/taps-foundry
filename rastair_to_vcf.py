@@ -127,7 +127,7 @@ class RastairRecord:
     @property
     def alt(self) -> str:
         """
-        The alternate allele for the record. If its not a snp it's represented as a methylation event
+        The alternate allele for the record. If it's not a snp it's represented as a methylation event
         """
         if self._alt is not None:
             return self._alt
