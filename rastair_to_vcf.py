@@ -94,8 +94,8 @@ class RastairRecord:
         no_snp: int,
         snp: int,
         coverage: int,
-        rastair_genotype,
-        gt_p_score,
+        rastair_genotype: str,
+        gt_p_score: float,
         score_threshold: int,
     ):
         self.contig = contig
