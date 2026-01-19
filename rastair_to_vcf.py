@@ -7,7 +7,6 @@ Usage:
 """
 
 import os
-import sys
 import datetime
 import argparse
 from csv import DictReader
