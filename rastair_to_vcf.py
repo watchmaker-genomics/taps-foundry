@@ -413,14 +413,14 @@ class RastairVcfWriter:
         """
         with open(rastair_file) as f:
             reader = DictReader(f, delimiter="\t")
+            header_keys = set(reader.fieldnames or [])
+            if not EXPECTED_COLUMNS.issubset(header_keys):
+                missed_columns = EXPECTED_COLUMNS - header_keys
+                raise ValueError(
+                    f"The header from provided Rastair file does not contain all expected columns. "
+                    f"Here's what was missed: {missed_columns}"
+                )
             for record in reader:
-                if not EXPECTED_COLUMNS.issubset(record.keys()):
-                    missed_columns = EXPECTED_COLUMNS - record.keys()
-                    raise ValueError(
-                        f"The header from provided Rastair file does not contain all expected columns. "
-                        f"Here's what was missed: {missed_columns}"
-                    )
-
                 yield RastairRecord(
                     contig=record[RASTAIR_CONTIG],
                     pos=int(record[RASTAIR_POS]),
