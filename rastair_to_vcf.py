@@ -226,7 +226,7 @@ class RastairVcfWriter:
     """
 
     def __init__(
-        self, output_file: str, sample_name, fasta_index: str, score_filter: int
+        self, output_file: str, sample_name: str, fasta_index: str, score_filter: int
     ):
         """
         :param output_file: The output VCF file
