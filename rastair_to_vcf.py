@@ -170,7 +170,7 @@ class RastairRecord:
         """
         Retrieve the filter for the record
 
-        :return: The filter pass is included
+        :return: A Filter enum value indicating the filtering result (PASS, LOW_SCORE, or NO_VARIANT).
         """
         if not self.is_snp():
             return Filter.NO_VARIANT
