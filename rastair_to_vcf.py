@@ -162,7 +162,7 @@ class RastairRecord:
 
     def is_snp(self) -> bool:
         """
-        Is this a legitimate SNP
+        Return whether this is a legitimate SNP.
         """
         return 1 in self.vcf_genotype
 
