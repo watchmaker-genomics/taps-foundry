@@ -303,7 +303,7 @@ class RastairVcfWriter:
                 ("ID", Filter.LOW_SCORE.value),
                 (
                     "Description",
-                    "This snp is not homozygous ref but has a score below the threshold",
+                    "This SNP is not homozygous ref but has a score below the threshold",
                 ),
             ],
         )
