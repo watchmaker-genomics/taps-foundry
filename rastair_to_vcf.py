@@ -292,7 +292,7 @@ class RastairVcfWriter:
                 ("ID", Filter.NO_VARIANT.value),
                 (
                     "Description",
-                    "This is a potential methylation site without a snp being called",
+                    "This is a potential methylation site without a SNP being called",
                 ),
             ],
         )
@@ -370,7 +370,7 @@ class RastairVcfWriter:
                 ("ID", VCF_NMO),
                 ("Number", "1"),
                 ("Type", "Integer"),
-                ("Description", "Non Methylation Observations"),
+                ("Description", "Non-Methylation Observations"),
             ],
         )
         header.add_meta(
@@ -379,7 +379,7 @@ class RastairVcfWriter:
                 ("ID", VCF_SAF),
                 ("Number", "1"),
                 ("Type", "Float"),
-                ("Description", "SNP Allele Frequency on non methylated strand"),
+                ("Description", "SNP Allele Frequency on non-methylated strand"),
             ],
         )
         header.add_meta(
@@ -400,7 +400,7 @@ class RastairVcfWriter:
                 ("ID", VCF_SDP),
                 ("Number", "1"),
                 ("Type", "Integer"),
-                ("Description", "SNP depth on non methylated strand"),
+                ("Description", "SNP depth on non-methylated strand"),
             ],
         )
         return header
