@@ -390,7 +390,7 @@ class RastairVcfWriter:
                 ("Type", "Integer"),
                 (
                     "Description",
-                    "SNP Alternate Allele Observation on non methylated strand",
+                    "SNP Alternate Allele Observation on non-methylated strand",
                 ),
             ],
         )
