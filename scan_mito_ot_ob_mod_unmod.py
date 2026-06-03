@@ -615,7 +615,11 @@ def count_position(
         query_pos = pileup_read.query_position
         if query_pos is None:
             continue
-        if base_is_trimmed(read, query_pos, position_group, nOT, nOB):
+        # Pass the read's own group, not the position's, so opposite-strand
+        # (non-meth control) reads get trimmed with their own mask. Matters
+        # only when nOT != nOB; preserves correctness of nonmeth counts and
+        # therefore beta_mod_fraction.
+        if base_is_trimmed(read, query_pos, read_group, nOT, nOB):
             continue
 
         qualities = read.query_qualities
@@ -739,8 +743,14 @@ def main() -> None:
     args = parse_args()
     validate_input_paths(args)
 
-    nOT = TrimMask.parse(args.nOT)
-    nOB = TrimMask.parse(args.nOB)
+    try:
+        nOT = TrimMask.parse(args.nOT)
+    except ValueError as exc:
+        die(f"Invalid --nOT value '{args.nOT}': {exc}")
+    try:
+        nOB = TrimMask.parse(args.nOB)
+    except ValueError as exc:
+        die(f"Invalid --nOB value '{args.nOB}': {exc}")
     stranded_read = StrandedRead(args.stranded_read)
     args.out_tsv.parent.mkdir(parents=True, exist_ok=True)
     args.summary_tsv.parent.mkdir(parents=True, exist_ok=True)

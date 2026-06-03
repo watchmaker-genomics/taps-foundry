@@ -624,6 +624,27 @@ class TestCountPosition(unittest.TestCase):
         counts = self._call(col, nOT=trim, nOB=smom.TrimMask(0, 0, 0, 0))
         self.assertEqual(counts.depth, 0)
 
+    def test_opposite_strand_uses_its_own_trim_mask(self):
+        # Regression: with asymmetric trim, an OB read at a reference-C (OT)
+        # position must be trimmed by nOB, not nOT. Earlier code passed the
+        # position's group to base_is_trimmed, biasing the nonmeth control
+        # channel whenever nOT != nOB.
+        # OB classification = R2 forward; place the base at query_pos=50.
+        read = _make_read("frag1", "T", 40, is_read2=True, is_reverse=False, query_pos=50)
+        col = _pcol([_pread(read, query_pos=50)])
+        # nOT has no trim. nOB has 60-base 5' trim on R2 — under the bug, the
+        # position group (OT) wins so nOT applies and the read is NOT trimmed.
+        nOT = smom.TrimMask(0, 0, 0, 0)
+        nOB = smom.TrimMask(0, 0, 60, 0)
+        counts = self._call(col, nOT=nOT, nOB=nOB)
+        # With the fix, the OB read is trimmed by nOB and is not counted as
+        # non-meth at this position.
+        self.assertEqual(counts.nonmeth_mod, 0)
+        self.assertEqual(counts.nonmeth_unmod, 0)
+        self.assertEqual(counts.nonmeth_other, 0)
+        # And the meth channel was already empty (no OT reads).
+        self.assertEqual(counts.depth, 0)
+
     def test_skips_when_qualities_is_none(self):
         read = _make_read("frag1", "T", 40, drop_qualities=True)
         self.assertEqual(self._call(_pcol([_pread(read)])).depth, 0)
