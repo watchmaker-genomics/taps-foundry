@@ -131,6 +131,93 @@ python save_as_methylkit.py \
 python save_as_methylkit.py -i test.mods -o results/test.mods.methylkit
 ```
 
+## `scan_mito_ot_ob_mod_unmod.py`
+
+Scans a single contig of an aligned BAM (default `chrM`) for TAPS-style methylation calls and writes per-position and per-group summary TSVs.
+
+Mechanically:
+
+- At each reference **C**, OT (Original Top) strand reads are counted as **mod** (`T` = methylated C → T) vs **unmod** (`C` = unconverted).
+- At each reference **G**, OB (Original Bottom) strand reads are counted as **mod** (`A`) vs **unmod** (`G`).
+- At the same positions, reads of the *opposite* strand are tallied as a background-rate control — base calls of the same shape that can only come from sequencing error, deamination damage, or somatic SNV. Used to produce an error-corrected methylation estimate (`beta_mod_fraction`).
+
+Trim masks (`--nOT` / `--nOB`) are applied in **read orientation**, matching rastair v1 semantics; reverse-strand reads have their 5'/3' trims swapped relative to the BAM SEQ. Overlapping paired-end mates are deduplicated to one fragment per position (higher-BQ call wins) *after* the quality / flag filters, so a filtered-out higher-BQ mate doesn't clobber the keep-able one. Mapping-quality and base-quality filtering is pushed into the htslib pileup engine.
+
+#### Dependencies
+
+- Python ≥ 3.9
+- `pysam` (`pip install pysam`)
+- An indexed BAM (`.bai`) and an indexed FASTA (`.fai`)
+
+The script fails fast with a clean error if any of those are missing, if the BAM is unindexed, or if the requested contig isn't in the BAM / FASTA header.
+
+#### Usage
+
+```
+python scan_mito_ot_ob_mod_unmod.py \
+    --bam sample.bam \
+    --fasta hg38.fa \
+    --contig chrM \
+    --out-tsv sample.positions.tsv \
+    --summary-tsv sample.summary.tsv
+```
+
+#### Key Arguments
+
+| Argument | Default | Description |
+|---|---|---|
+| `--bam` | (required) | Sorted, indexed BAM. |
+| `--fasta` | (required) | Indexed FASTA. |
+| `--contig` | `chrM` | Reference contig to scan. Must be present in both BAM and FASTA. |
+| `--min-mapq` | `20` | Minimum mapping quality (applied at the pileup engine). |
+| `--min-baseq` | `30` | Minimum base quality (applied at the pileup engine). |
+| `--include-flags` | `3` | Require all bits (`0x1` paired + `0x2` proper-pair). Use `0` for single-end. |
+| `--exclude-flags` | `3852` | Drop unmapped / mate-unmapped / secondary / vendor-QC-fail / duplicate / supplementary. |
+| `--nOT` | `0,0,0,0` | OT trim mask `r1_5p,r1_3p,r2_5p,r2_3p` (rastair v1, read-orientation). |
+| `--nOB` | `0,0,0,0` | OB trim mask, same shape. |
+| `--stranded-read` | `R1` | Which mate carries the original DNA strand. Use `R2` for PBAT / swapped libraries. Single-end ignores this. |
+| `--max-depth` | `200000` | pysam pileup cap. |
+| `--out-tsv` | (required) | Per-position TSV (per-row schema below). |
+| `--summary-tsv` | (required) | Aggregate summary TSV (`OT` / `OB` / `combined` rows). |
+
+#### Per-position TSV columns
+
+| Column | Description |
+|---|---|
+| `chrom`, `pos_1based` | Reference coordinates (1-based). |
+| `group` | `OT` (reference is C) or `OB` (reference is G). |
+| `ref_base`, `mod_base`, `unmod_base` | Reference / modified-call / unmodified-call base. For OT: `C` / `T` / `C`. For OB: `G` / `A` / `G`. |
+| `mod`, `unmod`, `other` | Methylated-strand call counts after filtering and per-fragment dedup. `other` is anything that is neither the `mod_base` nor the `unmod_base`. |
+| `informative` | `mod + unmod`. |
+| `depth` | `informative + other`. |
+| `mod_fraction` | `mod / informative` — raw methylation estimate, **uncorrected**. |
+| `nonmeth_mod`, `nonmeth_unmod`, `nonmeth_other` | Same tally computed from **opposite-strand** reads at the same position (the control channel). |
+| `nonmeth_informative`, `nonmeth_depth` | Derived totals from the control channel. |
+| `nonmeth_mod_fraction` | The noise / background-error rate at this position. |
+| `beta_mod_fraction` | **Error-corrected methylation estimate**: `max(0, (mod_fraction − nonmeth_mod_fraction) / (1 − nonmeth_mod_fraction))`. Clamped to ≥ 0. Falls back to `mod_fraction` when no non-meth reads exist or when `nonmeth_mod_fraction = 1` (homozygous-alt SNV). |
+
+#### Summary TSV columns
+
+One row each for `OT`, `OB`, and `combined`. Schema mirrors the per-position TSV with aggregates instead of per-position values:
+
+| Column | Description |
+|---|---|
+| `group` | `OT`, `OB`, or `combined`. |
+| `ref_base`, `mod_base`, `unmod_base` | Per-group labels (`combined` shows `C/G`, `T/A`, `C/G`). |
+| `positions` | Total reference positions of this group on the scanned contig. |
+| `covered_positions` | Positions with ≥ 1 passing meth-strand read. |
+| `mod`, `unmod`, `other`, `informative`, `depth`, `mod_fraction` | Aggregate methylated-strand counts. |
+| `nonmeth_mod`, `nonmeth_unmod`, `nonmeth_other`, `nonmeth_informative`, `nonmeth_depth`, `nonmeth_mod_fraction` | Aggregate control-channel counts. |
+| `beta_mod_fraction` | Aggregate error-corrected estimate. |
+
+#### Tests
+
+The script ships with 74 unit tests (stdlib `unittest`, no third-party deps). Run from the repo root:
+
+```
+python3 -m unittest discover -s tests -v
+```
+
 ## Variant Calling for TAPS Data
 TAPS introduces predictable C→T conversions during library preparation, which can confound standard variant callers by mimicking SNPs. Although TAPS preserves DNA integrity far better than bisulfite or EM-seq while simultaneously minimizing base changes, these systematic conversions still require specialized handling.
 
