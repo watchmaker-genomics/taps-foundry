@@ -146,7 +146,7 @@ Trim masks (`--nOT` / `--nOB`) are applied in **read orientation**, matching ras
 #### Dependencies
 
 - Python ≥ 3.9
-- `pysam` (`pip install pysam`)
+- `pysam` ≥ 0.22 (tested with `pysam` 0.22.1 and 0.23.3 — `pip install pysam`)
 - An indexed BAM (`.bai`) and an indexed FASTA (`.fai`)
 
 The script fails fast with a clean error if any of those are missing, if the BAM is unindexed, or if the requested contig isn't in the BAM / FASTA header.
@@ -182,6 +182,23 @@ python scan_mito_ot_ob_mod_unmod.py \
 | `--summary-tsv` | (required) | Aggregate summary TSV (`OT` / `OB` / `combined` rows). |
 
 > ⚠ **Tagmentation libraries are not supported.** Nextera / Tn5 / other tagmentation protocols introduce a ~9 bp duplication at fragment ends that creates a synthetic methylation signal the trim masks and soft-clip filter here are not designed to correct for. For tagmented data, use a tagmentation-aware caller and end-trim the 9 bp duplication separately before applying this script.
+
+#### Example
+
+A realistic invocation — stricter mapq, the conventional 20-base 3' trim on R2 for libraries with end-of-read quality drop (matching the `call-methylation.sh` defaults in this repo), and the default soft-clip filter:
+
+```
+python scan_mito_ot_ob_mod_unmod.py \
+    --bam sample.deduped.bam \
+    --fasta hg38.fa \
+    --contig chrM \
+    --min-mapq 30 \
+    --min-baseq 30 \
+    --nOT 0,0,0,20 \
+    --nOB 0,0,0,20 \
+    --out-tsv sample.positions.tsv \
+    --summary-tsv sample.summary.tsv
+```
 
 #### Per-position TSV columns
 
