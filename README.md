@@ -177,8 +177,11 @@ python scan_mito_ot_ob_mod_unmod.py \
 | `--nOB` | `0,0,0,0` | OB trim mask, same shape. |
 | `--stranded-read` | `R1` | Which mate carries the original DNA strand. Use `R2` for PBAT / swapped libraries. Single-end ignores this. |
 | `--max-depth` | `200000` | pysam pileup cap. |
+| `--max-softclip` | `5` | Reject reads with more than this many total soft-clipped bases. The default (5) rejects any read with 6 or more soft-clipped bases. Heavy soft-clipping at fragment ends biases methylation calls. |
 | `--out-tsv` | (required) | Per-position TSV (per-row schema below). |
 | `--summary-tsv` | (required) | Aggregate summary TSV (`OT` / `OB` / `combined` rows). |
+
+> ⚠ **Tagmentation libraries are not supported.** Nextera / Tn5 / other tagmentation protocols introduce a ~9 bp duplication at fragment ends that creates a synthetic methylation signal the trim masks and soft-clip filter here are not designed to correct for. For tagmented data, use a tagmentation-aware caller and end-trim the 9 bp duplication separately before applying this script.
 
 #### Per-position TSV columns
 

@@ -69,6 +69,43 @@ class StrandedRead(Enum):
         return self.value
 
 
+# ---------------------------------------------------------------------------
+# Defaults — single source of truth for every CLI default and the TSV schema.
+# Change here, the rest of the module follows.
+# ---------------------------------------------------------------------------
+DEFAULT_CONTIG: str = "chrM"
+DEFAULT_MIN_MAPQ: int = 20
+DEFAULT_MIN_BASEQ: int = 30
+DEFAULT_INCLUDE_FLAGS: int = 3       # 0x1 paired + 0x2 proper-pair
+DEFAULT_EXCLUDE_FLAGS: int = 3852    # unmapped/mate-unmapped/secondary/QC-fail/dup/supplementary
+DEFAULT_TRIM_MASK: str = "0,0,0,0"   # r1_5p,r1_3p,r2_5p,r2_3p
+DEFAULT_STRANDED_READ: StrandedRead = StrandedRead.R1
+DEFAULT_MAX_DEPTH: int = 200_000
+DEFAULT_MAX_SOFTCLIP: int = 5        # reject reads with >5 total soft-clipped bases
+
+POSITION_TSV_HEADER: list[str] = [
+    "chrom",
+    "pos_1based",
+    "group",
+    "ref_base",
+    "mod_base",
+    "unmod_base",
+    "mod",
+    "unmod",
+    "other",
+    "informative",
+    "depth",
+    "mod_fraction",
+    "nonmeth_mod",
+    "nonmeth_unmod",
+    "nonmeth_other",
+    "nonmeth_informative",
+    "nonmeth_depth",
+    "nonmeth_mod_fraction",
+    "beta_mod_fraction",
+]
+
+
 @dataclass(frozen=True)
 class TrimMask:
     """
@@ -302,24 +339,24 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--bam", type=Path, required=True, help="Sorted and indexed BAM.")
     parser.add_argument("--fasta", type=Path, required=True, help="Indexed reference FASTA.")
-    parser.add_argument("--contig", default="chrM", help="Contig to scan.")
-    parser.add_argument("--min-mapq", type=int, default=20, help="Minimum mapping quality.")
-    parser.add_argument("--min-baseq", type=int, default=30, help="Minimum base quality.")
+    parser.add_argument("--contig", default=DEFAULT_CONTIG, help=f"Contig to scan. Default: {DEFAULT_CONTIG}.")
+    parser.add_argument("--min-mapq", type=int, default=DEFAULT_MIN_MAPQ, help=f"Minimum mapping quality. Default: {DEFAULT_MIN_MAPQ}.")
+    parser.add_argument("--min-baseq", type=int, default=DEFAULT_MIN_BASEQ, help=f"Minimum base quality. Default: {DEFAULT_MIN_BASEQ}.")
     parser.add_argument(
         "--include-flags",
         type=int,
-        default=3,
+        default=DEFAULT_INCLUDE_FLAGS,
         help=(
-            "Require all these SAM flag bits (rastair default: 3 = 0x1 paired + 0x2 proper-pair). "
+            f"Require all these SAM flag bits (rastair default: {DEFAULT_INCLUDE_FLAGS} = 0x1 paired + 0x2 proper-pair). "
             "Use 0 for single-end data."
         ),
     )
     parser.add_argument(
         "--exclude-flags",
         type=int,
-        default=3852,
+        default=DEFAULT_EXCLUDE_FLAGS,
         help=(
-            "Exclude reads with any of these SAM flag bits (rastair default: 3852 = "
+            f"Exclude reads with any of these SAM flag bits (rastair default: {DEFAULT_EXCLUDE_FLAGS} = "
             "0x4 unmapped + 0x8 mate-unmapped + 0x100 secondary + 0x200 vendor-QC-fail + "
             "0x400 PCR/optical duplicate + 0x800 supplementary). "
             "Drops unmapped/orphan reads, non-primary alignments, QC failures, and dupes."
@@ -327,25 +364,36 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--nOT",
-        default="0,0,0,0",
+        default=DEFAULT_TRIM_MASK,
         help="OT trim mask as r1_start,r1_end,r2_start,r2_end (r1/r2 = SAM read number, not the stranded-read setting).",
     )
     parser.add_argument(
         "--nOB",
-        default="0,0,0,0",
+        default=DEFAULT_TRIM_MASK,
         help="OB trim mask as r1_start,r1_end,r2_start,r2_end (r1/r2 = SAM read number, not the stranded-read setting).",
     )
     parser.add_argument(
         "--stranded-read",
         choices=[member.value for member in StrandedRead],
-        default=StrandedRead.R1.value,
-        help="Which paired-end mate carries the original DNA strand. Default: R1. Ignored for single-end data.",
+        default=DEFAULT_STRANDED_READ.value,
+        help=f"Which paired-end mate carries the original DNA strand. Default: {DEFAULT_STRANDED_READ.value}. Ignored for single-end data.",
     )
     parser.add_argument(
         "--max-depth",
         type=int,
-        default=200000,
-        help="Maximum pileup depth per position.",
+        default=DEFAULT_MAX_DEPTH,
+        help=f"Maximum pileup depth per position. Default: {DEFAULT_MAX_DEPTH}.",
+    )
+    parser.add_argument(
+        "--max-softclip",
+        type=int,
+        default=DEFAULT_MAX_SOFTCLIP,
+        help=(
+            f"Maximum total soft-clipped bases tolerated per read. Reads with more soft clip "
+            f"are dropped. Default: {DEFAULT_MAX_SOFTCLIP} (i.e. reject reads with {DEFAULT_MAX_SOFTCLIP + 1} or more soft-clipped bases). "
+            "Heavy soft-clipping is associated with adapter contamination and "
+            "mis-alignment at fragment ends, both of which can bias methylation calls."
+        ),
     )
     parser.add_argument(
         "--out-tsv",
@@ -386,9 +434,31 @@ def classify_group(read: pysam.AlignedSegment, stranded_read: StrandedRead) -> G
     return Group.OB
 
 
-def read_passes(read: pysam.AlignedSegment, include_flags: int, exclude_flags: int) -> bool:
+def soft_clip_total(read: pysam.AlignedSegment) -> int:
     """
-    Check whether a read passes the SAM flag include/exclude filters.
+    Total bases soft-clipped across both ends of the read.
+
+    Computed as `query_length - query_alignment_length`. `query_length`
+    includes soft-clipped bases; `query_alignment_length` does not.
+
+    @param read: Aligned read.
+    @return: Total soft-clipped base count, or 0 when length info is missing.
+    """
+    qlen = read.query_length
+    aqlen = read.query_alignment_length
+    if qlen is None or aqlen is None:
+        return 0
+    return qlen - aqlen
+
+
+def read_passes(
+    read: pysam.AlignedSegment,
+    include_flags: int,
+    exclude_flags: int,
+    max_softclip: int,
+) -> bool:
+    """
+    Check whether a read passes the SAM flag and soft-clip filters.
 
     Mapping-quality filtering is handled by `pileup(min_mapping_quality=...)`
     upstream so it never reaches this function.
@@ -396,11 +466,15 @@ def read_passes(read: pysam.AlignedSegment, include_flags: int, exclude_flags: i
     @param read: Aligned read to test.
     @param include_flags: All bits required to be set in the read's SAM flag.
     @param exclude_flags: Bits that must not be set in the read's SAM flag.
+    @param max_softclip: Maximum total soft-clipped bases the read may have.
+        Reads with more soft clip than this are rejected.
     @return: True if the read should be kept, False otherwise.
     """
     if (read.flag & include_flags) != include_flags:
         return False
     if read.flag & exclude_flags:
+        return False
+    if soft_clip_total(read) > max_softclip:
         return False
     return True
 
@@ -501,29 +575,6 @@ def write_summary(path: Path, rows: list[Summary]) -> None:
             )
 
 
-POSITION_TSV_HEADER = [
-    "chrom",
-    "pos_1based",
-    "group",
-    "ref_base",
-    "mod_base",
-    "unmod_base",
-    "mod",
-    "unmod",
-    "other",
-    "informative",
-    "depth",
-    "mod_fraction",
-    "nonmeth_mod",
-    "nonmeth_unmod",
-    "nonmeth_other",
-    "nonmeth_informative",
-    "nonmeth_depth",
-    "nonmeth_mod_fraction",
-    "beta_mod_fraction",
-]
-
-
 def validate_input_paths(args: argparse.Namespace) -> None:
     """
     Check that the BAM, FASTA, and FASTA index exist on disk.
@@ -593,7 +644,7 @@ def count_position(
     @param position_group: OT for reference-C positions, OB for reference-G.
     @param mod_base: The base call interpreted as modified at this position.
     @param unmod_base: The base call interpreted as unmodified.
-    @param args: Parsed CLI namespace; uses `include_flags` and `exclude_flags`.
+    @param args: Parsed CLI namespace; uses `include_flags`, `exclude_flags`, `max_softclip`.
     @param stranded_read: Which mate carries the original strand.
     @param nOT: Trim mask for OT reads.
     @param nOB: Trim mask for OB reads.
@@ -606,7 +657,7 @@ def count_position(
         if pileup_read.is_del or pileup_read.is_refskip:
             continue
         read = pileup_read.alignment
-        if not read_passes(read, args.include_flags, args.exclude_flags):
+        if not read_passes(read, args.include_flags, args.exclude_flags, args.max_softclip):
             continue
 
         read_group = classify_group(read, stranded_read)
@@ -622,6 +673,10 @@ def count_position(
         if base_is_trimmed(read, query_pos, read_group, nOT, nOB):
             continue
 
+        # Defensive: pysam returns None when the BAM record's QUAL field is
+        # `*` (no quality scores stored). htslib's min_base_quality on the
+        # pileup engine already filters those reads when --min-baseq > 0,
+        # but we double-check here so qualities[query_pos] can never KeyError.
         qualities = read.query_qualities
         if qualities is None:
             continue

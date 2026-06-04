@@ -36,6 +36,7 @@ class FakeRead:
     flag: int = 3  # paired + proper-pair
     mapping_quality: int = 60
     query_length: int = 100
+    query_alignment_length: int = 100  # = query_length → no soft clip by default
     query_name: str = "frag1"
     query_sequence: str = "A" * 100
     query_qualities: list = field(default_factory=lambda: [40] * 100)
@@ -234,24 +235,42 @@ class TestClassifyGroupR2Stranded(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestReadPasses(unittest.TestCase):
+    def _call(self, read, **overrides):
+        kwargs = {"include_flags": 3, "exclude_flags": 3852, "max_softclip": 5}
+        kwargs.update(overrides)
+        return smom.read_passes(read, **kwargs)
+
     def test_passes_defaults(self):
-        read = FakeRead(flag=3)
-        self.assertTrue(smom.read_passes(read, include_flags=3, exclude_flags=3852))
+        self.assertTrue(self._call(FakeRead(flag=3)))
 
     def test_missing_required_bit(self):
         # flag=1 (paired only) — missing proper-pair bit
-        read = FakeRead(flag=1)
-        self.assertFalse(smom.read_passes(read, include_flags=3, exclude_flags=3852))
+        self.assertFalse(self._call(FakeRead(flag=1)))
 
     def test_excluded_duplicate(self):
         # 0x400 = PCR/optical duplicate, in default exclude_flags=3852
-        read = FakeRead(flag=3 | 0x400)
-        self.assertFalse(smom.read_passes(read, include_flags=3, exclude_flags=3852))
+        self.assertFalse(self._call(FakeRead(flag=3 | 0x400)))
 
     def test_single_end_with_include_zero(self):
         # Unpaired read passes when include_flags=0 (the recommended single-end setting)
-        read = FakeRead(is_paired=False, flag=0)
-        self.assertTrue(smom.read_passes(read, include_flags=0, exclude_flags=3852))
+        self.assertTrue(self._call(FakeRead(is_paired=False, flag=0), include_flags=0))
+
+    def test_softclip_at_threshold_passes(self):
+        # max_softclip=5, read has exactly 5 soft-clipped bases → still kept
+        read = FakeRead(query_length=100, query_alignment_length=95)
+        self.assertTrue(self._call(read))
+
+    def test_softclip_over_threshold_rejected(self):
+        # max_softclip=5, read has 6 soft-clipped bases → rejected (the spec)
+        read = FakeRead(query_length=100, query_alignment_length=94)
+        self.assertFalse(self._call(read))
+
+    def test_softclip_threshold_is_parameterizable(self):
+        read = FakeRead(query_length=100, query_alignment_length=90)  # 10 clipped
+        self.assertFalse(self._call(read, max_softclip=5))
+        self.assertFalse(self._call(read, max_softclip=9))
+        self.assertTrue(self._call(read, max_softclip=10))
+        self.assertTrue(self._call(read, max_softclip=20))
 
 
 # ---------------------------------------------------------------------------
@@ -485,6 +504,7 @@ def _make_read(
     is_reverse: bool = False,
     query_pos: int = 50,
     query_length: int = 100,
+    query_alignment_length: int | None = None,
     flag: int = 3,
     mapq: int = 60,
     drop_qualities: bool = False,
@@ -492,6 +512,8 @@ def _make_read(
     """Build a FakeRead with `base` placed at `query_pos` in the SEQ."""
     seq = ["N"] * query_length
     seq[query_pos] = base
+    if query_alignment_length is None:
+        query_alignment_length = query_length
     read = FakeRead(
         is_paired=True,
         is_read1=not is_read2,
@@ -500,6 +522,7 @@ def _make_read(
         flag=flag,
         mapping_quality=mapq,
         query_length=query_length,
+        query_alignment_length=query_alignment_length,
         query_name=name,
         query_sequence="".join(seq),
         query_qualities=[bq] * query_length,
@@ -524,7 +547,7 @@ def _pcol(preads: list) -> SimpleNamespace:
 
 class TestCountPosition(unittest.TestCase):
     def _args(self, **kw):
-        defaults = dict(include_flags=3, exclude_flags=3852)
+        defaults = dict(include_flags=3, exclude_flags=3852, max_softclip=5)
         defaults.update(kw)
         return SimpleNamespace(**defaults)
 
@@ -623,6 +646,18 @@ class TestCountPosition(unittest.TestCase):
         trim = smom.TrimMask(60, 0, 0, 0)
         counts = self._call(col, nOT=trim, nOB=smom.TrimMask(0, 0, 0, 0))
         self.assertEqual(counts.depth, 0)
+
+    def test_skips_heavily_softclipped_reads(self):
+        # Default max_softclip=5; a read with 10 clipped bases gets dropped.
+        read = _make_read("frag1", "T", 40, query_length=100, query_alignment_length=90)
+        col = _pcol([_pread(read)])
+        self.assertEqual(self._call(col).depth, 0)
+
+    def test_softclip_threshold_passes_when_relaxed(self):
+        read = _make_read("frag1", "T", 40, query_length=100, query_alignment_length=90)
+        col = _pcol([_pread(read)])
+        counts = self._call(col, args=self._args(max_softclip=10))
+        self.assertEqual(counts.mod, 1)
 
     def test_opposite_strand_uses_its_own_trim_mask(self):
         # Regression: with asymmetric trim, an OB read at a reference-C (OT)
